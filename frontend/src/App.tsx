@@ -10,6 +10,7 @@ import {
   me,
   search,
 } from "./api/spotiflac";
+import { useSSE } from "./hooks/useSSE";
 
 type AuthState = "loading" | "guest" | AuthInfo;
 
@@ -129,9 +130,30 @@ function HomePage({
   );
   const [service, setService] = useState<"tidal" | "qobuz" | "amazon">("qobuz");
 
+  // Live progress: server reports MB downloaded + MB/s for the user's active download.
+  const [progressMB, setProgressMB] = useState<number | null>(null);
+  const [speedMBps, setSpeedMBps] = useState<number | null>(null);
+
   useEffect(() => {
     localStorage.setItem("tidal_api_url", tidalAPI);
   }, [tidalAPI]);
+
+  useSSE("/api/events/queue", true, (ev) => {
+    if (ev.kind === "progress") {
+      if (typeof ev.progress_mb === "number") setProgressMB(ev.progress_mb);
+      if (typeof ev.speed_mbps === "number") setSpeedMBps(ev.speed_mbps);
+    } else if (ev.kind === "started") {
+      setProgressMB(0);
+      setSpeedMBps(0);
+    } else if (
+      ev.kind === "completed" ||
+      ev.kind === "failed" ||
+      ev.kind === "skipped"
+    ) {
+      setProgressMB(null);
+      setSpeedMBps(null);
+    }
+  });
 
   const runSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +225,23 @@ function HomePage({
           Logout
         </button>
       </header>
+
+      {downloading !== null && (
+        <div className="sticky top-[57px] z-10 bg-emerald-900/30 border-b border-emerald-700/40 px-4 py-2 text-xs flex items-center gap-3">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="flex-1 truncate">
+            Lade…{" "}
+            {progressMB !== null && (
+              <span className="tabular-nums text-emerald-300">
+                {progressMB.toFixed(1)} MB
+                {speedMBps !== null && speedMBps > 0
+                  ? ` · ${speedMBps.toFixed(2)} MB/s`
+                  : ""}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
 
       <main className="max-w-2xl mx-auto px-4 py-4 space-y-4 pb-24">
         <section className="space-y-2">
@@ -285,9 +324,13 @@ function HomePage({
               <button
                 onClick={() => triggerDownload(track)}
                 disabled={downloading !== null}
-                className="text-xs rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-2 font-medium shrink-0"
+                className="text-xs rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-2 font-medium shrink-0 min-w-[80px] tabular-nums"
               >
-                {downloading === track.id ? "…" : "FLAC"}
+                {downloading === track.id
+                  ? progressMB !== null
+                    ? `${progressMB.toFixed(1)}MB`
+                    : "…"
+                  : "FLAC"}
               </button>
             </li>
           ))}

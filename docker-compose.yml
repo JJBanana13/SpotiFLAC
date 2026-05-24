@@ -1,0 +1,45 @@
+# Self-host SpotiFLAC for you + ~5 friends.
+#
+# 1. cp .env.example .env, then fill in SPOTIFLAC_COOKIE_SECRET, initial admin
+#    credentials, and SPOTIFLAC_DOMAIN (e.g. spotiflac.example.com).
+# 2. Point your DNS A/AAAA record at the host.
+# 3. docker compose up -d
+#
+# Caddy will fetch a Let's Encrypt cert automatically the first time the
+# domain resolves to this server.
+
+services:
+  spotiflac:
+    build:
+      context: .
+    image: spotiflac:latest
+    restart: unless-stopped
+    environment:
+      SPOTIFLAC_LISTEN: ":8080"
+      SPOTIFLAC_COOKIE_SECRET: ${SPOTIFLAC_COOKIE_SECRET}
+      SPOTIFLAC_INITIAL_USER: ${SPOTIFLAC_INITIAL_USER}
+      SPOTIFLAC_INITIAL_PASSWORD: ${SPOTIFLAC_INITIAL_PASSWORD}
+      SPOTIFLAC_VERSION: ${SPOTIFLAC_VERSION:-dev}
+    volumes:
+      - spotiflac-data:/data
+    # No port exposed to the host: Caddy reverse-proxies on the docker network.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SPOTIFLAC_DOMAIN: ${SPOTIFLAC_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - spotiflac
+
+volumes:
+  spotiflac-data:
+  caddy-data:
+  caddy-config:

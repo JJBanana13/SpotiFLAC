@@ -132,7 +132,9 @@ func NewProgressWriter(writer io.Writer) *ProgressWriter {
 		startTime:   now,
 		lastTime:    now,
 		lastBytes:   0,
-		itemID:      "",
+		// Capture the currently active item so per-item progress updates fire
+		// without forcing every downloader to plumb itemID through its API.
+		itemID: GetCurrentItemID(),
 	}
 }
 
@@ -185,9 +187,13 @@ func (pw *ProgressWriter) GetTotal() int64 {
 }
 
 func AddToQueue(id, trackName, artistName, albumName, spotifyID string) {
-	downloadQueueLock.Lock()
-	defer downloadQueueLock.Unlock()
+	AddToQueueForUser("", id, trackName, artistName, albumName, spotifyID)
+}
 
+// AddToQueueForUser is like AddToQueue but also records the owning user so SSE
+// subscribers can be notified about subsequent updates to this item.
+func AddToQueueForUser(userID, id, trackName, artistName, albumName, spotifyID string) {
+	downloadQueueLock.Lock()
 	item := DownloadItem{
 		ID:         id,
 		TrackName:  trackName,
@@ -201,20 +207,28 @@ func AddToQueue(id, trackName, artistName, albumName, spotifyID string) {
 		StartTime:  0,
 		EndTime:    0,
 	}
-
 	downloadQueue = append(downloadQueue, item)
+	downloadQueueLock.Unlock()
 
 	sessionStartLock.Lock()
 	if sessionStartTime == 0 {
 		sessionStartTime = time.Now().Unix()
 	}
 	sessionStartLock.Unlock()
+
+	recordOwner(id, userID)
+	publish(userID, QueueEvent{
+		Kind:   "added",
+		ItemID: id,
+		Track:  trackName,
+		Artist: artistName,
+		Album:  albumName,
+		Status: string(StatusQueued),
+	})
 }
 
 func StartDownloadItem(id string) {
 	downloadQueueLock.Lock()
-	defer downloadQueueLock.Unlock()
-
 	for i := range downloadQueue {
 		if downloadQueue[i].ID == id {
 			downloadQueue[i].Status = StatusDownloading
@@ -223,16 +237,21 @@ func StartDownloadItem(id string) {
 			break
 		}
 	}
+	downloadQueueLock.Unlock()
 
 	currentItemLock.Lock()
 	currentItemID = id
 	currentItemLock.Unlock()
+
+	publish(OwnerForItem(id), QueueEvent{
+		Kind:   "started",
+		ItemID: id,
+		Status: string(StatusDownloading),
+	})
 }
 
 func UpdateItemProgress(id string, progress, speed float64) {
 	downloadQueueLock.Lock()
-	defer downloadQueueLock.Unlock()
-
 	for i := range downloadQueue {
 		if downloadQueue[i].ID == id {
 			downloadQueue[i].Progress = progress
@@ -240,6 +259,14 @@ func UpdateItemProgress(id string, progress, speed float64) {
 			break
 		}
 	}
+	downloadQueueLock.Unlock()
+
+	publish(OwnerForItem(id), QueueEvent{
+		Kind:     "progress",
+		ItemID:   id,
+		Progress: progress,
+		Speed:    speed,
+	})
 }
 
 func GetCurrentItemID() string {
@@ -250,8 +277,6 @@ func GetCurrentItemID() string {
 
 func CompleteDownloadItem(id, filePath string, finalSize float64) {
 	downloadQueueLock.Lock()
-	defer downloadQueueLock.Unlock()
-
 	for i := range downloadQueue {
 		if downloadQueue[i].ID == id {
 			downloadQueue[i].Status = StatusCompleted
@@ -266,12 +291,20 @@ func CompleteDownloadItem(id, filePath string, finalSize float64) {
 			break
 		}
 	}
+	downloadQueueLock.Unlock()
+
+	owner := OwnerForItem(id)
+	publish(owner, QueueEvent{
+		Kind:   "completed",
+		ItemID: id,
+		Status: string(StatusCompleted),
+		Size:   finalSize,
+	})
+	forgetOwner(id)
 }
 
 func FailDownloadItem(id, errorMsg string) {
 	downloadQueueLock.Lock()
-	defer downloadQueueLock.Unlock()
-
 	for i := range downloadQueue {
 		if downloadQueue[i].ID == id {
 			downloadQueue[i].Status = StatusFailed
@@ -280,12 +313,20 @@ func FailDownloadItem(id, errorMsg string) {
 			break
 		}
 	}
+	downloadQueueLock.Unlock()
+
+	owner := OwnerForItem(id)
+	publish(owner, QueueEvent{
+		Kind:   "failed",
+		ItemID: id,
+		Status: string(StatusFailed),
+		Error:  errorMsg,
+	})
+	forgetOwner(id)
 }
 
 func SkipDownloadItem(id, filePath string) {
 	downloadQueueLock.Lock()
-	defer downloadQueueLock.Unlock()
-
 	for i := range downloadQueue {
 		if downloadQueue[i].ID == id {
 			downloadQueue[i].Status = StatusSkipped
@@ -294,6 +335,15 @@ func SkipDownloadItem(id, filePath string) {
 			break
 		}
 	}
+	downloadQueueLock.Unlock()
+
+	owner := OwnerForItem(id)
+	publish(owner, QueueEvent{
+		Kind:   "skipped",
+		ItemID: id,
+		Status: string(StatusSkipped),
+	})
+	forgetOwner(id)
 }
 
 func GetDownloadQueue() DownloadQueueInfo {

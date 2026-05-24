@@ -34,6 +34,7 @@ func NewRouter(frontendFS embed.FS, frontendRoot string) *echo.Echo {
 	priv.POST("/metadata", handleMetadata)
 	priv.POST("/download", handleDownload)
 	priv.GET("/history", handleHistoryList)
+	priv.GET("/events/queue", handleQueueEvents)
 
 	// --- Static frontend (SPA fallback) ---
 	mountSPA(e, frontendFS, frontendRoot)

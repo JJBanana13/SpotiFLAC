@@ -154,7 +154,8 @@ func sanitizeUserDir(username string) string {
 }
 
 // handleDownload runs the existing backend downloader into a per-request temp dir,
-// streams the resulting file to the client, then cleans up.
+// streams the resulting file to the client, then cleans up. It also publishes
+// queue events to the user's SSE channel so the UI can render progress.
 func handleDownload(c echo.Context) error {
 	username := CurrentUser(c)
 
@@ -182,18 +183,30 @@ func handleDownload(c echo.Context) error {
 	}
 	defer os.RemoveAll(jobDir)
 
+	itemID := uuid.NewString()
+	backend.AddToQueueForUser(username, itemID, req.TrackName, req.ArtistName, req.AlbumName, req.SpotifyID)
+	backend.SetDownloading(true)
+	backend.StartDownloadItem(itemID)
+	defer backend.SetDownloading(false)
+
 	filePath, dlErr := runDownload(req, jobDir)
 	if dlErr != nil {
+		backend.FailDownloadItem(itemID, dlErr.Error())
 		return echo.NewHTTPError(http.StatusBadGateway, dlErr.Error())
 	}
 
 	info, err := os.Stat(filePath)
 	if err != nil {
+		backend.FailDownloadItem(itemID, "downloaded file not found")
 		return echo.NewHTTPError(http.StatusInternalServerError, "downloaded file not found")
 	}
 	if info.Size() == 0 {
+		backend.FailDownloadItem(itemID, "downloaded file is empty")
 		return echo.NewHTTPError(http.StatusInternalServerError, "downloaded file is empty")
 	}
+
+	finalSizeMB := float64(info.Size()) / (1024 * 1024)
+	backend.CompleteDownloadItem(itemID, filePath, finalSizeMB)
 
 	filename := filepath.Base(filePath)
 	c.Response().Header().Set(echo.HeaderContentType, mimeFor(filename))

@@ -1,0 +1,18 @@
+{$SPOTIFLAC_DOMAIN} {
+	encode zstd gzip
+
+	# Long-running SSE streams: keep buffers off so events flush immediately.
+	@sse path /api/events/*
+	reverse_proxy @sse spotiflac:8080 {
+		flush_interval -1
+	}
+
+	# Large download streams: disable response buffering.
+	@download path /api/download
+	reverse_proxy @download spotiflac:8080 {
+		flush_interval -1
+	}
+
+	# Everything else (API + SPA).
+	reverse_proxy spotiflac:8080
+}
