@@ -59,6 +59,15 @@ temp/
 # Test files
 test
 
+# Embedded frontend bundle: contents are generated, but the directory must exist
+# (with at least the placeholder index.html) so that go:embed can build.
+cmd/server/frontend_dist/*
+!cmd/server/frontend_dist/index.html
+
+# Compiled server binary
+/spotiflac-server
+/spotiflac-server.exe
+
 # Build notes (optional - uncomment if you don't want to commit)
 # BUILD_NOTES.md
 push.bat
