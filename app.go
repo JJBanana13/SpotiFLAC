@@ -19,7 +19,7 @@ import (
 
 	"github.com/spotbye/SpotiFLAC/backend"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	runtime "github.com/spotbye/SpotiFLAC/backend/uiruntime"
 )
 
 type App struct {

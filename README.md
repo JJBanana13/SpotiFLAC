@@ -34,6 +34,53 @@
 
 ### [Download](https://github.com/spotbye/SpotiFLAC/releases/latest)
 
+## Web interface (HTTPS)
+
+Besides the desktop app, SpotiFLAC can run as a server: the backend stays on
+the machine that runs it and the frontend is opened in any browser over HTTPS.
+All files are still written to the download folder set in the settings, i.e.
+on the server.
+
+Build:
+
+```bash
+wails generate module                              # creates frontend/wailsjs
+cd frontend && pnpm install && pnpm run build:web && cd ..
+go build -tags web -o spotiflac-web .
+```
+
+Run:
+
+```bash
+SPOTIFLAC_PASSWORD='secret' ./spotiflac-web -addr :8443
+# open https://<server>:8443 and log in as "admin"
+```
+
+| Flag | Env | Default | Description |
+| --- | --- | --- | --- |
+| `-addr` | `SPOTIFLAC_ADDR` | `:8443` | Listen address |
+| `-cert` / `-key` | `SPOTIFLAC_TLS_CERT` / `SPOTIFLAC_TLS_KEY` | – | TLS certificate and key (PEM). Without them a self-signed certificate is created in `~/.spotiflac/web-tls/` |
+| `-user` | `SPOTIFLAC_USER` | `admin` | Login user |
+| `-password` | `SPOTIFLAC_PASSWORD` | – | Login password (required unless `-no-auth`) |
+| `-http` | `SPOTIFLAC_PLAIN_HTTP=1` | off | Plain HTTP, only behind a reverse proxy that terminates HTTPS |
+
+Docker:
+
+```bash
+docker build -f Dockerfile.web -t spotiflac-web .
+docker run -d -p 8443:8443 -e SPOTIFLAC_PASSWORD='secret' \
+  -v /srv/spotiflac:/config -v /srv/music:/music spotiflac-web
+```
+
+Then set the download path in the settings to `/music`.
+
+Notes for the web interface:
+
+- Folder and file pickers browse the server's file system.
+- Dragging local files into the browser is not supported; pick them with the
+  file browser instead, as they have to be on the server.
+- "Open folder" buttons are disabled, they would open a window on the server.
+
 ## Other projects
 
 ### [SpotiFLAC Next](https://github.com/spotbye/SpotiFLAC-Next)

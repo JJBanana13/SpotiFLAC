@@ -3,7 +3,7 @@ package backend
 import (
 	"context"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	runtime "github.com/spotbye/SpotiFLAC/backend/uiruntime"
 )
 
 func SelectMultipleFiles(ctx context.Context) ([]string, error) {
