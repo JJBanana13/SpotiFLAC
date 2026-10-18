@@ -1,0 +1,42 @@
+# SpotiFLAC web server: backend + frontend served over HTTPS.
+# Downloads are written inside the container to the folder configured in the
+# settings (default /music), so mount that folder from the host.
+
+FROM golang:1.26-bookworm AS bindings
+WORKDIR /src
+RUN go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN mkdir -p frontend/dist && touch frontend/dist/.keep && wails generate module
+
+FROM node:22-bookworm AS frontend
+WORKDIR /src
+RUN corepack enable
+COPY wails.json ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/
+COPY frontend/scripts frontend/scripts
+COPY frontend/public frontend/public
+RUN cd frontend && pnpm install --frozen-lockfile
+COPY frontend frontend
+COPY --from=bindings /src/frontend/wailsjs frontend/wailsjs
+RUN cd frontend && pnpm run build:web
+
+FROM golang:1.26-bookworm AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=frontend /src/frontend/dist frontend/dist
+RUN CGO_ENABLED=0 go build -tags web -trimpath -ldflags "-s -w" -o /out/spotiflac-web .
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /config /music
+ENV HOME=/config
+COPY --from=build /out/spotiflac-web /usr/local/bin/spotiflac-web
+VOLUME ["/config", "/music"]
+EXPOSE 8443
+ENTRYPOINT ["spotiflac-web"]

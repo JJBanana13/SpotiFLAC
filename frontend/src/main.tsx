@@ -6,7 +6,11 @@ import App from "./App.tsx";
 import { Toaster } from "@/components/ui/sonner";
 import { initializeQueuePersistence } from "@/lib/queue";
 import "@/i18n";
+import { IS_WEB } from "@/lib/platform";
 async function bootstrap() {
+    if (IS_WEB) {
+        await import("@/web/bridge");
+    }
     try {
         await initializeQueuePersistence();
     }

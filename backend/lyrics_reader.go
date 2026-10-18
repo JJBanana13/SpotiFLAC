@@ -13,7 +13,7 @@ import (
 	id3v2 "github.com/bogem/id3v2/v2"
 	"github.com/go-flac/flacvorbis"
 	"github.com/go-flac/go-flac"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	runtime "github.com/spotbye/SpotiFLAC/backend/uiruntime"
 )
 
 type EmbeddedLyrics struct {
