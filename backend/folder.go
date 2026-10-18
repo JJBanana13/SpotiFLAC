@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	wailsRuntime "github.com/spotbye/SpotiFLAC/backend/uiruntime"
 )
 
 func OpenFolderInExplorer(path string) error {

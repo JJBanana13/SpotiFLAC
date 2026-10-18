@@ -8,6 +8,7 @@ import { PREVIEW_VOLUME_CHANGED_EVENT } from "@/lib/preview";
 import { fetchCurrentIPInfo } from "@/lib/api";
 import type { CurrentIPInfo } from "@/types/api";
 import { openExternal } from "@/lib/utils";
+import { IS_WEB } from "@/lib/platform";
 import { useEffect, useRef, useState } from "react";
 const IP_INFO_REFRESH_INTERVAL_MS = 30000;
 const SPOTIFY_BLOCKED_COUNTRY_CODES = new Set([
@@ -197,6 +198,7 @@ export function TitleBar({ canGoBack = false, canGoForward = false, navigationDi
                 </MenubarContent>
             </MenubarMenu>
         </Menubar>
+        {!IS_WEB && (<>
         <button onClick={handleMinimize} className="size-7 cursor-pointer flex items-center justify-center hover:bg-muted transition-colors rounded" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties} aria-label={t("translation.titleBar.minimize")}>
           <Minus className="w-3.5 h-3.5"/>
         </button>
@@ -206,6 +208,7 @@ export function TitleBar({ canGoBack = false, canGoForward = false, navigationDi
         <button onClick={handleClose} className="size-7 cursor-pointer flex items-center justify-center hover:bg-destructive hover:text-white transition-colors rounded" style={{ "--wails-draggable": "no-drag" } as React.CSSProperties} aria-label={t("translation.common.close")}>
           <X className="w-3.5 h-3.5"/>
         </button>
+        </>)}
       </div>
     </>);
 }
